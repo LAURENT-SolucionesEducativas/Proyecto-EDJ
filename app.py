@@ -70,7 +70,7 @@ with st.form("form_ejercicio", clear_on_submit=True):
     respuesta = st.text_area("Respuesta")
     nivel = st.selectbox("Nivel de dificultad", ["Muy fácil","Fácil", "Medio", "Difícil"])
     resolucion_file = st.file_uploader("📷 Imagen de la resolución", type=["png", "jpg", "jpeg"])
-    tipo = st.text_input("Tipo de ejercicio")
+    tipo = st.text_input("Tipo de ejercicio - Taxonomía de Bloom")
     fuente = st.text_input("Fuente")
     link = st.text_input("Enlace de referencia")
 
@@ -80,13 +80,17 @@ with st.form("form_ejercicio", clear_on_submit=True):
 if submitted:
     if not id_ejercicio or not curso or not grado or not tema or not subtema:
         st.error("❌ Por favor completa todos los campos obligatorios.")
-    elif imagen_file is None or resolucion_file is None:
-        st.error("❌ Debes subir ambas imágenes: Enunciado y Resolución.")
+    elif resolucion_file is None:
+        st.error("❌ Debes subir la imagen de la resolución.")
     else:
-        # Subir imágenes
-        nombre_imagen = f"imagen_{id_ejercicio}.{imagen_file.name.split('.')[-1]}"
-        url_imagen = subir_imagen_a_drive(imagen_file, ID_CARPETA_IMAGEN, nombre_imagen)
+        # Subir imagen del enunciado solo si existe
+        if imagen_file is not None:
+            nombre_imagen = f"imagen_{id_ejercicio}.{imagen_file.name.split('.')[-1]}"
+            url_imagen = subir_imagen_a_drive(imagen_file, ID_CARPETA_IMAGEN, nombre_imagen)
+        else:
+            url_imagen = ""
 
+        # Subir imagen de resolución (obligatoria)
         nombre_resolucion = f"resolucion_{id_ejercicio}.{resolucion_file.name.split('.')[-1]}"
         url_resolucion = subir_imagen_a_drive(resolucion_file, ID_CARPETA_RESOLUCION, nombre_resolucion)
 
