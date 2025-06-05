@@ -6,6 +6,9 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
+# Cargar las credenciales desde los secretos
+creds_dict = json.loads(st.secrets["GOOGLE_CREDS"]["GOOGLE_CREDS"])
+
 # --- CONFIGURACIÓN ---
 ID_CARPETA_IMAGEN = "1Y3olIluysi1Ff6dAR84WRz1OCd1PXyVu"
 ID_CARPETA_RESOLUCION = "1aSHHMKQ60yCfrZ-bmvyd8lbF1DBZ2FSw"
