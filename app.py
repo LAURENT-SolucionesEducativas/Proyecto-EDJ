@@ -78,26 +78,35 @@ with st.form("form_ejercicio", clear_on_submit=True):
 
 # --- PROCESAMIENTO ---
 if submitted:
-    if not id_ejercicio or not curso or not grado or not tema or not subtema:
+    if not curso or not grado or not tema or not subtema:
         st.error("❌ Por favor completa todos los campos obligatorios.")
     elif resolucion_file is None:
         st.error("❌ Debes subir la imagen de la resolución.")
     else:
-        # Subir imagen del enunciado solo si existe
+        # Obtener todos los valores actuales (sin encabezado)
+        filas = sheet.get_all_values()[1:]  # Ignora encabezado
+        if filas:
+            ultimo_id = int(filas[-1][0])  # Primera columna = ID (asumimos que es número)
+            nuevo_id = str(ultimo_id + 1)
+        else:
+            nuevo_id = "1"
+
+        # Subir imagen del enunciado si existe
         if imagen_file is not None:
-            nombre_imagen = f"imagen_{id_ejercicio}.{imagen_file.name.split('.')[-1]}"
+            nombre_imagen = f"imagen_{nuevo_id}.{imagen_file.name.split('.')[-1]}"
             url_imagen = subir_imagen_a_drive(imagen_file, ID_CARPETA_IMAGEN, nombre_imagen)
         else:
             url_imagen = ""
 
         # Subir imagen de resolución (obligatoria)
-        nombre_resolucion = f"resolucion_{id_ejercicio}.{resolucion_file.name.split('.')[-1]}"
+        nombre_resolucion = f"resolucion_{nuevo_id}.{resolucion_file.name.split('.')[-1]}"
         url_resolucion = subir_imagen_a_drive(resolucion_file, ID_CARPETA_RESOLUCION, nombre_resolucion)
 
         # Guardar fila
         fila = [
-            id_ejercicio, curso, grado, id_docente, nombre_docente, tema, subtema,
+            nuevo_id, curso, grado, id_docente, nombre_docente, tema, subtema,
             enunciado, url_imagen, claves, respuesta, nivel, url_resolucion, tipo, fuente, link
         ]
         sheet.append_row(fila)
-        st.success("✅ ¡Ejercicio guardado exitosamente!")
+        st.success(f"✅ ¡Ejercicio guardado exitosamente con ID {nuevo_id}!")
+
