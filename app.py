@@ -53,7 +53,7 @@ def subir_imagen_a_drive(file, carpeta_id, nombre_archivo):
 # --- INTERFAZ STREAMLIT ---
 st.title("📘 Registre sus ejercicios")
 
-with st.form("form_ejercicio", clear_on_submit=True):
+with st.form("form_ejercicio", clear_on_submit=False):
     curso = st.selectbox("Curso", ["RM", "A", "X", "G", "T", "F", "RV", "L","HU"])
     grado = st.selectbox("Grado", ["5P", "6P", "1S", "2S", "3S", "4S", "5S"])
     id_docente = st.text_input("ID del docente")
