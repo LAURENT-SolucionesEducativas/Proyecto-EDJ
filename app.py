@@ -113,7 +113,9 @@ if submitted:
             with col2:
                 if st.button("❌ No, cancelar"):
                     st.session_state.confirmar_guardado = False
-                    st.stop()
+                    st.stop()if enunciado_similar and not st.session_state.confirmar_guardado:
+    
+
 
 # --- GUARDAR SOLO SI hay confirmación o no hubo similitud ---
 if st.session_state.confirmar_guardado or (submitted and not enunciado_similar):
