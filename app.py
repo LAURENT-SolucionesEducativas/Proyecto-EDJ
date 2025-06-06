@@ -72,9 +72,17 @@ with st.form("form_ejercicio", clear_on_submit=False):
 
     submitted = st.form_submit_button("💾 Guardar ejercicio")
 
-# --- FUNCIÓN PARA DETECTAR ENUNCIADOS SIMILARES ---
+from difflib import SequenceMatcher
+
+# --- Función para comparar similitud ---
 def es_similar(a, b, umbral=0.9):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio() >= umbral
+
+# Variable de sesión para manejar confirmación
+if "confirmar_guardado" not in st.session_state:
+    st.session_state.confirmar_guardado = False
+if "datos_temporales" not in st.session_state:
+    st.session_state.datos_temporales = {}
 
 # --- PROCESAMIENTO ---
 if submitted:
@@ -83,38 +91,88 @@ if submitted:
     elif resolucion_file is None:
         st.error("❌ Debes subir la imagen de la resolución.")
     else:
-        # Verificar si el enunciado ya existe (similar)
-        filas = sheet.get_all_values()[1:]  # sin encabezado
-        enunciados_existentes = [fila[7] for fila in filas]  # columna de enunciado
+        # Verificar si existe un enunciado similar
+        filas = sheet.get_all_values()[1:]  # Sin encabezado
+        enunciados_existentes = [fila[7] for fila in filas if len(fila) > 7]
 
+        enunciado_similar = None
         for existente in enunciados_existentes:
             if es_similar(enunciado, existente):
-                st.warning("⚠️ Este enunciado es muy similar a uno ya registrado. Por favor revísalo antes de guardar.")
-                st.stop()  # Detiene la ejecución del código para evitar guardado
+                enunciado_similar = existente
+                break
 
-        # Obtener nuevo ID
-        if filas:
-            ultimo_id = int(filas[-1][0])
-            nuevo_id = str(ultimo_id + 1)
+        if enunciado_similar and not st.session_state.confirmar_guardado:
+            st.warning("⚠️ Este enunciado es muy similar a uno ya registrado:")
+            st.code(enunciado_similar)
+            st.info("¿Estás seguro de que deseas guardarlo de todos modos?")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Sí, guardar de todos modos"):
+                    st.session_state.confirmar_guardado = True
+                    st.session_state.datos_temporales = {
+                        "curso": curso,
+                        "grado": grado,
+                        "id_docente": id_docente,
+                        "nombre_docente": nombre_docente,
+                        "tema": tema,
+                        "subtema": subtema,
+                        "enunciado": enunciado,
+                        "imagen_file": imagen_file,
+                        "claves": claves,
+                        "respuesta": respuesta,
+                        "nivel": nivel,
+                        "resolucion_file": resolucion_file,
+                        "tipo": tipo,
+                        "fuente": fuente,
+                        "link": link,
+                    }
+                    st.experimental_rerun()
+            with col2:
+                if st.button("❌ No, cancelar"):
+                    st.session_state.confirmar_guardado = False
+                    st.stop()
         else:
-            nuevo_id = "1"
+            # Si es una segunda vez o no hubo similitud: usar los datos actuales o los temporales
+            if st.session_state.confirmar_guardado:
+                datos = st.session_state.datos_temporales
+                curso = datos["curso"]
+                grado = datos["grado"]
+                id_docente = datos["id_docente"]
+                nombre_docente = datos["nombre_docente"]
+                tema = datos["tema"]
+                subtema = datos["subtema"]
+                enunciado = datos["enunciado"]
+                imagen_file = datos["imagen_file"]
+                claves = datos["claves"]
+                respuesta = datos["respuesta"]
+                nivel = datos["nivel"]
+                resolucion_file = datos["resolucion_file"]
+                tipo = datos["tipo"]
+                fuente = datos["fuente"]
+                link = datos["link"]
 
-        # Subir imagen del enunciado si existe
-        if imagen_file is not None:
-            nombre_imagen = f"imagen_{nuevo_id}.{imagen_file.name.split('.')[-1]}"
-            url_imagen = subir_imagen_a_drive(imagen_file, ID_CARPETA_IMAGEN, nombre_imagen)
-        else:
+            # Asignar ID automático
+            filas = sheet.get_all_values()[1:]
+            nuevo_id = str(int(filas[-1][0]) + 1) if filas else "1"
+
+            # Subir imágenes
             url_imagen = ""
+            if imagen_file is not None:
+                nombre_imagen = f"imagen_{nuevo_id}.{imagen_file.name.split('.')[-1]}"
+                url_imagen = subir_imagen_a_drive(imagen_file, ID_CARPETA_IMAGEN, nombre_imagen)
 
-        # Subir resolución
-        nombre_resolucion = f"resolucion_{nuevo_id}.{resolucion_file.name.split('.')[-1]}"
-        url_resolucion = subir_imagen_a_drive(resolucion_file, ID_CARPETA_RESOLUCION, nombre_resolucion)
+            nombre_resolucion = f"resolucion_{nuevo_id}.{resolucion_file.name.split('.')[-1]}"
+            url_resolucion = subir_imagen_a_drive(resolucion_file, ID_CARPETA_RESOLUCION, nombre_resolucion)
 
-        # Guardar
-        fila = [
-            nuevo_id, curso, grado, id_docente, nombre_docente, tema, subtema,
-            enunciado, url_imagen, claves, respuesta, nivel, url_resolucion, tipo, fuente, link
-        ]
-        sheet.append_row(fila)
-        st.success(f"✅ ¡Ejercicio guardado exitosamente con ID {nuevo_id}!")
+            fila = [
+                nuevo_id, curso, grado, id_docente, nombre_docente, tema, subtema,
+                enunciado, url_imagen, claves, respuesta, nivel, url_resolucion, tipo, fuente, link
+            ]
+            sheet.append_row(fila)
+            st.success(f"✅ ¡Ejercicio guardado exitosamente con ID {nuevo_id}!")
+
+            # Limpiar estado de sesión
+            st.session_state.confirmar_guardado = False
+            st.session_state.datos_temporales = {}
+
 
