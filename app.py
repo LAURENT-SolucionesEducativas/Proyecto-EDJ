@@ -70,6 +70,10 @@ with st.form("form_ejercicio", clear_on_submit=True):
 
     submitted = st.form_submit_button("💾 Guardar ejercicio")
 
+# --- FUNCIÓN PARA DETECTAR ENUNCIADOS SIMILARES ---
+def es_similar(a, b, umbral=0.9):
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio() >= umbral
+
 # --- PROCESAMIENTO ---
 if submitted:
     if not curso or not grado or not tema or not subtema:
@@ -77,25 +81,16 @@ if submitted:
     elif resolucion_file is None:
         st.error("❌ Debes subir la imagen de la resolución.")
     else:
-        # Verificar similitud de enunciado
-        enunciados_existentes = sheet.col_values(8)  # Columna del enunciado
-        enunciado_mas_parecido = ""
-        mayor_similitud = 0
+        # Verificar si el enunciado ya existe (similar)
+        filas = sheet.get_all_values()[1:]  # sin encabezado
+        enunciados_existentes = [fila[7] for fila in filas]  # columna de enunciado
 
-        for e in enunciados_existentes:
-            similitud = difflib.SequenceMatcher(None, enunciado.lower(), e.lower()).ratio()
-            if similitud > mayor_similitud:
-                mayor_similitud = similitud
-                enunciado_mas_parecido = e
-
-        if mayor_similitud > 0.9:
-            st.warning(f"⚠️ Este enunciado es **muy similar** a uno ya registrado.\n\n"
-                       f"📄 Enunciado más parecido:\n\n> *{enunciado_mas_parecido}*\n\n"
-                       f"🔎 Similitud: {mayor_similitud:.2f}\n\n"
-                       f"✏️ Si estás seguro que es distinto, modifica ligeramente el texto o continúa.")
+        for existente in enunciados_existentes:
+            if es_similar(enunciado, existente):
+                st.warning("⚠️ Este enunciado es muy similar a uno ya registrado. Por favor revísalo antes de guardar.")
+                st.stop()  # Detiene la ejecución del código para evitar guardado
 
         # Obtener nuevo ID
-        filas = sheet.get_all_values()[1:]
         if filas:
             ultimo_id = int(filas[-1][0])
             nuevo_id = str(ultimo_id + 1)
@@ -103,16 +98,17 @@ if submitted:
             nuevo_id = "1"
 
         # Subir imagen del enunciado si existe
-        url_imagen = ""
         if imagen_file is not None:
             nombre_imagen = f"imagen_{nuevo_id}.{imagen_file.name.split('.')[-1]}"
             url_imagen = subir_imagen_a_drive(imagen_file, ID_CARPETA_IMAGEN, nombre_imagen)
+        else:
+            url_imagen = ""
 
-        # Subir imagen de resolución (obligatoria)
+        # Subir resolución
         nombre_resolucion = f"resolucion_{nuevo_id}.{resolucion_file.name.split('.')[-1]}"
         url_resolucion = subir_imagen_a_drive(resolucion_file, ID_CARPETA_RESOLUCION, nombre_resolucion)
 
-        # Guardar en hoja
+        # Guardar
         fila = [
             nuevo_id, curso, grado, id_docente, nombre_docente, tema, subtema,
             enunciado, url_imagen, claves, respuesta, nivel, url_resolucion, tipo, fuente, link
