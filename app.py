@@ -6,6 +6,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+from difflib import SequenceMatcher
+
 
 # Cargar las credenciales desde los secretos
 creds_dict = json.loads(st.secrets["GOOGLE_CREDS"])
