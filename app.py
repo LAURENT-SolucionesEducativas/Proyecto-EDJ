@@ -53,7 +53,7 @@ def subir_imagen_a_drive(file, carpeta_id, nombre_archivo):
     return url
 
 # --- INTERFAZ STREAMLIT ---
-st.title("📘 Formulario para registrar ejercicios")
+st.title("📘 Registre sus ejercicios")
 
 with st.form("form_ejercicio", clear_on_submit=True):
     id_ejercicio = st.text_input("ID del ejercicio")
