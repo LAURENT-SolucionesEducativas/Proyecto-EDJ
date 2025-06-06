@@ -8,10 +8,6 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from difflib import SequenceMatcher
 
-
-# Cargar las credenciales desde los secretos
-creds_dict = json.loads(st.secrets["GOOGLE_CREDS"])
-
 # --- CONFIGURACIÓN ---
 ID_CARPETA_IMAGEN = "1Y3olIluysi1Ff6dAR84WRz1OCd1PXyVu"
 ID_CARPETA_RESOLUCION = "1aSHHMKQ60yCfrZ-bmvyd8lbF1DBZ2FSw"
@@ -23,14 +19,14 @@ SCOPE = [
 ]
 
 # --- AUTENTICACIÓN ---
+creds_dict = json.loads(st.secrets["GOOGLE_CREDS"])
 creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPE)
 
 client = gspread.authorize(creds)
 sheet = client.open_by_key(ID_HOJA_CALCULO).sheet1
-
 drive_service = build('drive', 'v3', credentials=creds)
 
-# --- FUNCIÓN PARA SUBIR IMAGEN ---
+# --- FUNCIONES AUXILIARES ---
 def subir_imagen_a_drive(file, carpeta_id, nombre_archivo):
     file.seek(0)
     file_metadata = {
@@ -47,12 +43,19 @@ def subir_imagen_a_drive(file, carpeta_id, nombre_archivo):
         fileId=uploaded_file['id'],
         body={'type': 'anyone', 'role': 'reader'}
     ).execute()
-    url = f"https://drive.google.com/uc?id={uploaded_file['id']}"
-    return url
+    return f"https://drive.google.com/uc?id={uploaded_file['id']}"
 
-# --- INTERFAZ STREAMLIT ---
+def es_similar(a, b, umbral=0.9):
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio() >= umbral
+
+# --- VARIABLES DE SESIÓN ---
+if "confirmar_guardado" not in st.session_state:
+    st.session_state.confirmar_guardado = False
+if "datos_formulario" not in st.session_state:
+    st.session_state.datos_formulario = {}
+
+# --- FORMULARIO ---
 st.title("📘 Registre sus ejercicios")
-
 with st.form("form_ejercicio", clear_on_submit=False):
     curso = st.selectbox("Curso", ["RM", "A", "X", "G", "T", "F", "RV", "L","HU"])
     grado = st.selectbox("Grado", ["5P", "6P", "1S", "2S", "3S", "4S", "5S"])
@@ -69,36 +72,40 @@ with st.form("form_ejercicio", clear_on_submit=False):
     tipo = st.text_input("Tipo de ejercicio - Taxonomía de Bloom")
     fuente = st.text_input("Fuente")
     link = st.text_input("Enlace de referencia")
-
     submitted = st.form_submit_button("💾 Guardar ejercicio")
 
-from difflib import SequenceMatcher
+# --- LÓGICA DE PROCESAMIENTO ---
+if submitted or st.session_state.confirmar_guardado:
+    datos = {
+        "curso": curso,
+        "grado": grado,
+        "id_docente": id_docente,
+        "nombre_docente": nombre_docente,
+        "tema": tema,
+        "subtema": subtema,
+        "enunciado": enunciado,
+        "imagen_file": imagen_file,
+        "claves": claves,
+        "respuesta": respuesta,
+        "nivel": nivel,
+        "resolucion_file": resolucion_file,
+        "tipo": tipo,
+        "fuente": fuente,
+        "link": link,
+    }
 
-# ... (todo tu import y setup es igual hasta el form)
-
-# --- Función para comparar similitud ---
-def es_similar(a, b, umbral=0.9):
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio() >= umbral
-
-if "confirmar_guardado" not in st.session_state:
-    st.session_state.confirmar_guardado = False
-if "enunciado_similar" not in st.session_state:
-    st.session_state.enunciado_similar = ""
-
-# --- PROCESAMIENTO ---
-if submitted:
-    if not curso or not grado or not tema or not subtema:
+    # Validación básica
+    if not datos["curso"] or not datos["grado"] or not datos["tema"] or not datos["subtema"]:
         st.error("❌ Por favor completa todos los campos obligatorios.")
-    elif resolucion_file is None:
+    elif datos["resolucion_file"] is None:
         st.error("❌ Debes subir la imagen de la resolución.")
     else:
-        # Verificar similitud de enunciado
-        filas = sheet.get_all_values()[1:]
+        filas = sheet.get_all_values()[1:]  # Sin encabezado
         enunciados_existentes = [fila[7] for fila in filas if len(fila) > 7]
 
         enunciado_similar = None
         for existente in enunciados_existentes:
-            if es_similar(enunciado, existente):
+            if es_similar(datos["enunciado"], existente):
                 enunciado_similar = existente
                 break
 
@@ -110,35 +117,31 @@ if submitted:
             with col1:
                 if st.button("✅ Sí, guardar de todos modos"):
                     st.session_state.confirmar_guardado = True
+                    st.session_state.datos_formulario = datos
+                    st.experimental_rerun()
             with col2:
                 if st.button("❌ No, cancelar"):
                     st.session_state.confirmar_guardado = False
-                    st.stop()if enunciado_similar and not st.session_state.confirmar_guardado:
-    
+                    st.stop()
+        else:
+            if st.session_state.confirmar_guardado:
+                datos = st.session_state.datos_formulario
 
+            nuevo_id = str(int(filas[-1][0]) + 1) if filas else "1"
+            url_imagen = ""
+            if datos["imagen_file"] is not None:
+                nombre_imagen = f"imagen_{nuevo_id}.{datos['imagen_file'].name.split('.')[-1]}"
+                url_imagen = subir_imagen_a_drive(datos["imagen_file"], ID_CARPETA_IMAGEN, nombre_imagen)
 
-# --- GUARDAR SOLO SI hay confirmación o no hubo similitud ---
-if st.session_state.confirmar_guardado or (submitted and not enunciado_similar):
-    filas = sheet.get_all_values()[1:]
-    nuevo_id = str(int(filas[-1][0]) + 1) if filas else "1"
+            nombre_resolucion = f"resolucion_{nuevo_id}.{datos['resolucion_file'].name.split('.')[-1]}"
+            url_resolucion = subir_imagen_a_drive(datos["resolucion_file"], ID_CARPETA_RESOLUCION, nombre_resolucion)
 
-    url_imagen = ""
-    if imagen_file is not None:
-        nombre_imagen = f"imagen_{nuevo_id}.{imagen_file.name.split('.')[-1]}"
-        url_imagen = subir_imagen_a_drive(imagen_file, ID_CARPETA_IMAGEN, nombre_imagen)
+            fila = [
+                nuevo_id, datos["curso"], datos["grado"], datos["id_docente"], datos["nombre_docente"], datos["tema"], datos["subtema"],
+                datos["enunciado"], url_imagen, datos["claves"], datos["respuesta"], datos["nivel"], url_resolucion, datos["tipo"], datos["fuente"], datos["link"]
+            ]
+            sheet.append_row(fila)
+            st.success(f"✅ ¡Ejercicio guardado exitosamente con ID {nuevo_id}!")
 
-    nombre_resolucion = f"resolucion_{nuevo_id}.{resolucion_file.name.split('.')[-1]}"
-    url_resolucion = subir_imagen_a_drive(resolucion_file, ID_CARPETA_RESOLUCION, nombre_resolucion)
-
-    fila = [
-        nuevo_id, curso, grado, id_docente, nombre_docente, tema, subtema,
-        enunciado, url_imagen, claves, respuesta, nivel, url_resolucion, tipo, fuente, link
-    ]
-    sheet.append_row(fila)
-    st.success(f"✅ ¡Ejercicio guardado exitosamente con ID {nuevo_id}!")
-
-    # Limpiar sesión
-    st.session_state.confirmar_guardado = False
-
-
-
+            st.session_state.confirmar_guardado = False
+            st.session_state.datos_formulario = {}
